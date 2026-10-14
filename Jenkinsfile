@@ -58,38 +58,46 @@ pipeline {
       }
     }
 
-    stage('Push image to GHCR') {
-      steps {
-        withCredentials([
-          usernamePassword(
-            credentialsId: 'ghcr-credentials',
-            usernameVariable: 'GHCR_USER',
-            passwordVariable: 'GHCR_TOKEN'
-          )
-        ]) {
-          bat '''
-            @echo off
-            powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-              "$ErrorActionPreference = 'Stop';" ^
-              "$env:GHCR_TOKEN | docker login ghcr.io -u $env:GHCR_USER --password-stdin;" ^
-              "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE };" ^
-              "foreach ($tag in @('%BUILD_NUMBER%', 'latest')) {" ^
-              "  $success = $false;" ^
-              "  for ($attempt = 1; $attempt -le 5; $attempt++) {" ^
-              "    Write-Host ('Pushing tag ' + $tag + ', attempt ' + $attempt + ' of 5');" ^
-              "    docker push ('%IMAGE_NAME%:' + $tag);" ^
-              "    if ($LASTEXITCODE -eq 0) { $success = $true; break };" ^
-              "    if ($attempt -lt 5) { $delay = 10 * $attempt; Write-Host ('Retrying in ' + $delay + ' seconds'); Start-Sleep -Seconds $delay };" ^
-              "  };" ^
-              "  if (-not $success) { exit 1 };" ^
-              "};" ^
-              "docker logout ghcr.io"
 
-            if errorlevel 1 exit /b 1
-          '''
-        }
-      }
+stage('Push image to GHCR') {
+  steps {
+    withCredentials([
+      usernamePassword(
+        credentialsId: 'ghcr-credentials',
+        usernameVariable: 'GHCR_USER',
+        passwordVariable: 'GHCR_TOKEN'
+      )
+    ]) {
+      bat '''
+        @echo off
+        powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+          "$ErrorActionPreference = 'Stop';" ^
+          "$loggedIn = $false;" ^
+          "for ($attempt = 1; $attempt -le 5; $attempt++) {" ^
+          "  Write-Host ('GHCR login attempt ' + $attempt + ' of 5');" ^
+          "  $env:GHCR_TOKEN | docker login ghcr.io -u $env:GHCR_USER --password-stdin;" ^
+          "  if ($LASTEXITCODE -eq 0) { $loggedIn = $true; break };" ^
+          "  if ($attempt -lt 5) { Start-Sleep -Seconds (10 * $attempt) };" ^
+          "};" ^
+          "if (-not $loggedIn) { exit 1 };" ^
+          "foreach ($tag in @('%BUILD_NUMBER%', 'latest')) {" ^
+          "  $success = $false;" ^
+          "  for ($attempt = 1; $attempt -le 5; $attempt++) {" ^
+          "    Write-Host ('Pushing tag ' + $tag + ', attempt ' + $attempt + ' of 5');" ^
+          "    docker push ('%IMAGE_NAME%:' + $tag);" ^
+          "    if ($LASTEXITCODE -eq 0) { $success = $true; break };" ^
+          "    if ($attempt -lt 5) { Start-Sleep -Seconds (10 * $attempt) };" ^
+          "  };" ^
+          "  if (-not $success) { exit 1 };" ^
+          "};" ^
+          "docker logout ghcr.io"
+
+        if errorlevel 1 exit /b 1
+      '''
     }
+  }
+}
+
 
     stage('Deploy to EC2') {
       steps {
