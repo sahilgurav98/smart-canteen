@@ -56,33 +56,42 @@ pipeline {
       }
     }
 
-    stage('Push image to GHCR') {
-      steps {
-        withCredentials([
-          usernamePassword(
-            credentialsId: 'ghcr-credentials',
-            usernameVariable: 'GHCR_USER',
-            passwordVariable: 'GHCR_TOKEN'
-          )
-        ]) {
-          bat '''
-            @echo off
-            setlocal
-            echo Logging in to GHCR...
-            echo %GHCR_TOKEN%| docker login ghcr.io -u %GHCR_USER% --password-stdin
-            if errorlevel 1 exit /b 1
+stage('Push image to GHCR') {
+  steps {
+    withCredentials([
+      usernamePassword(
+        credentialsId: 'ghcr-credentials',
+        usernameVariable: 'GHCR_USER',
+        passwordVariable: 'GHCR_TOKEN'
+      )
+    ]) {
+      bat '''
+        @echo off
+        echo Logging in to GHCR...
+        echo %GHCR_TOKEN%| docker login ghcr.io -u %GHCR_USER% --password-stdin
+        if errorlevel 1 exit /b 1
 
-            docker push %IMAGE_NAME%:%BUILD_NUMBER%
-            if errorlevel 1 exit /b 1
+        set ATTEMPT=0
+        :retry_push
+        set /a ATTEMPT+=1
+        echo GHCR push attempt %ATTEMPT% of 3
 
-            docker push %IMAGE_NAME%:latest
-            if errorlevel 1 exit /b 1
+        docker push %IMAGE_NAME%:%BUILD_NUMBER%
+        if not errorlevel 1 goto push_latest
 
-            docker logout ghcr.io
-          '''
-        }
-      }
+        if %ATTEMPT% GEQ 3 exit /b 1
+        timeout /t 5 /nobreak >nul
+        goto retry_push
+
+        :push_latest
+        docker push %IMAGE_NAME%:latest
+        if errorlevel 1 exit /b 1
+
+        docker logout ghcr.io
+      '''
     }
+  }
+}
 
     stage('Deploy to EC2') {
       steps {
