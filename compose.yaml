@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    image: smart-canteen:local
+    ports:
+      - "5000:5000"
+    environment:
+      SECRET_KEY: "replace-this-before-deployment"
+      ADMIN_PASSWORD: "change-this-demo-password"
+      DATABASE_PATH: /app/data/canteen.db
+    volumes:
+      - canteen-data:/app/data
+    restart: unless-stopped
+volumes:
+  canteen-data:
