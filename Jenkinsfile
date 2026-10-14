@@ -91,24 +91,32 @@ stage('Push image to GHCR') {
 }
 
 
-    stage('Deploy to EC2') {
-      steps {
-        withCredentials([
-          sshUserPrivateKey(
-            credentialsId: 'ec2-ssh-key',
-            keyFileVariable: 'SSH_KEY',
-            usernameVariable: 'SSH_USER'
-          )
-        ]) {
-          bat '''
-            @echo off
-            ssh -i "%SSH_KEY%" -o StrictHostKeyChecking=accept-new %SSH_USER%@%EC2_HOST% "docker pull %IMAGE_NAME%:latest && (docker rm -f smart-canteen || true) && docker run -d --restart unless-stopped --name smart-canteen -p 127.0.0.1:5000:5000 -e SECRET_KEY='replace-with-a-long-random-secret' -e ADMIN_PASSWORD='replace-with-a-strong-admin-password' -v canteen-data:/app/data %IMAGE_NAME%:latest"
-            if errorlevel 1 exit /b 1
-          '''
-        }
-      }
+
+stage('Deploy to EC2') {
+  steps {
+    withCredentials([
+      sshUserPrivateKey(
+        credentialsId: 'ec2-ssh-key',
+        keyFileVariable: 'SSH_KEY',
+        usernameVariable: 'SSH_USER'
+      )
+    ]) {
+      bat '''
+        @echo off
+        icacls "%SSH_KEY%" /inheritance:r
+        if errorlevel 1 exit /b 1
+
+        icacls "%SSH_KEY%" /grant:r "%USERNAME%:R"
+        if errorlevel 1 exit /b 1
+
+        ssh -i "%SSH_KEY%" -o StrictHostKeyChecking=accept-new %SSH_USER%@%EC2_HOST% "docker pull %IMAGE_NAME%:latest && (docker rm -f smart-canteen || true) && docker run -d --restart unless-stopped --name smart-canteen -p 127.0.0.1:5000:5000 -e SECRET_KEY='replace-with-a-long-random-secret' -e ADMIN_PASSWORD='replace-with-a-strong-admin-password' -v canteen-data:/app/data %IMAGE_NAME%:latest"
+
+        if errorlevel 1 exit /b 1
+      '''
     }
   }
+}
+
 
   post {
     success {
