@@ -9,7 +9,7 @@ pipeline {
 
   environment {
     IMAGE_NAME = "ghcr.io/sahilgurav98/smart-canteen"
-    EC2_HOST = "13.204.68.16",
+    EC2_HOST = "13.204.68.16"
     DOCKER_CONFIG = 'C:\\Users\\gurav\\.docker'
   }
 
