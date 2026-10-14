@@ -52,7 +52,6 @@ pipeline {
           powershell -NoProfile -ExecutionPolicy Bypass -Command "$ok=$false; for($i=0;$i -lt 20;$i++){try{$r=Invoke-WebRequest -Uri 'http://127.0.0.1:18080/health' -UseBasicParsing -TimeoutSec 3;if($r.StatusCode -eq 200){$ok=$true;break}}catch{};Start-Sleep -Seconds 2};if(-not $ok){exit 1}"
 
           set "CHECK_RESULT=%ERRORLEVEL%"
-
           docker rm -f smart-canteen-ci-test
           exit /b %CHECK_RESULT%
         '''
@@ -76,11 +75,11 @@ pipeline {
               "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE };" ^
               "foreach ($tag in @('%BUILD_NUMBER%', 'latest')) {" ^
               "  $success = $false;" ^
-              "  for ($attempt = 1; $attempt -le 3; $attempt++) {" ^
-              "    Write-Host ('Pushing tag ' + $tag + ', attempt ' + $attempt + ' of 3');" ^
+              "  for ($attempt = 1; $attempt -le 5; $attempt++) {" ^
+              "    Write-Host ('Pushing tag ' + $tag + ', attempt ' + $attempt + ' of 5');" ^
               "    docker push ('%IMAGE_NAME%:' + $tag);" ^
               "    if ($LASTEXITCODE -eq 0) { $success = $true; break };" ^
-              "    Start-Sleep -Seconds 5;" ^
+              "    if ($attempt -lt 5) { $delay = 10 * $attempt; Write-Host ('Retrying in ' + $delay + ' seconds'); Start-Sleep -Seconds $delay };" ^
               "  };" ^
               "  if (-not $success) { exit 1 };" ^
               "};" ^
