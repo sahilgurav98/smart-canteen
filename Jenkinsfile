@@ -9,7 +9,8 @@ pipeline {
 
   environment {
     IMAGE_NAME = "ghcr.io/sahilgurav98/smart-canteen"
-    EC2_HOST = "13.204.68.16"
+    EC2_HOST = "13.204.68.16",
+    DOCKER_CONFIG = 'C:\\Users\\gurav\\.docker'
   }
 
   stages {
@@ -56,6 +57,7 @@ pipeline {
       }
     }
 
+
 stage('Push image to GHCR') {
   steps {
     withCredentials([
@@ -67,31 +69,27 @@ stage('Push image to GHCR') {
     ]) {
       bat '''
         @echo off
-        echo Logging in to GHCR...
-        echo %GHCR_TOKEN%| docker login ghcr.io -u %GHCR_USER% --password-stdin
+        powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+          "$ErrorActionPreference = 'Stop';" ^
+          "$env:GHCR_TOKEN | docker login ghcr.io -u $env:GHCR_USER --password-stdin;" ^
+          "if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE };" ^
+          "foreach ($tag in @('%BUILD_NUMBER%', 'latest')) {" ^
+          "  $success = $false;" ^
+          "  for ($attempt = 1; $attempt -le 3; $attempt++) {" ^
+          "    Write-Host ('Pushing tag ' + $tag + ', attempt ' + $attempt + ' of 3');" ^
+          "    docker push ('%IMAGE_NAME%:' + $tag);" ^
+          "    if ($LASTEXITCODE -eq 0) { $success = $true; break };" ^
+          "    Start-Sleep -Seconds 5;" ^
+          "  };" ^
+          "  if (-not $success) { exit 1 };" ^
+          "};" ^
+          "docker logout ghcr.io"
         if errorlevel 1 exit /b 1
-
-        set ATTEMPT=0
-        :retry_push
-        set /a ATTEMPT+=1
-        echo GHCR push attempt %ATTEMPT% of 3
-
-        docker push %IMAGE_NAME%:%BUILD_NUMBER%
-        if not errorlevel 1 goto push_latest
-
-        if %ATTEMPT% GEQ 3 exit /b 1
-        timeout /t 5 /nobreak >nul
-        goto retry_push
-
-        :push_latest
-        docker push %IMAGE_NAME%:latest
-        if errorlevel 1 exit /b 1
-
-        docker logout ghcr.io
       '''
     }
   }
 }
+
 
     stage('Deploy to EC2') {
       steps {
