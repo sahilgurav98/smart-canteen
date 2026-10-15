@@ -23,13 +23,11 @@ pipeline {
                 bat 'if exist app.py (echo app.py exists) else (exit 1)'
             }
         }
-
-        stage('Docker Build') {
-            steps {
-                bat "docker build -t ${REGISTRY}/${GITHUB_USER}/${IMAGE_NAME}:latest ."
-            }
-        }
-
+stage('Docker Build') {
+    steps {
+        bat "docker build --provenance=false -t ${REGISTRY}/${GITHUB_USER}/${IMAGE_NAME}:latest ."
+    }
+}
         stage('GHCR Push') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'ghcr-credentials', usernameVariable: 'GHCR_USER', passwordVariable: 'GHCR_PAT')]) {
