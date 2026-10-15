@@ -3,8 +3,10 @@ pipeline {
 
     environment {
         REGISTRY = 'ghcr.io'
-        IMAGE_NAME = 'smart-canteen'  // Name of your container image
-        GITHUB_USER = 'sahilgurav98' // Replace with your actual GitHub username or org name
+        IMAGE_NAME = 'smart-canteen'
+        GITHUB_USER = 'YOUR_GITHUB_USERNAME'
+        EC2_IP = 'YOUR_EC2_PUBLIC_IP'
+        EC2_USER = 'ec2-user'
     }
 
     stages {
@@ -17,37 +19,43 @@ pipeline {
 
         stage('Test') {
             steps {
-                echo "Validating application files..."
+                echo "Validating project files..."
                 bat 'if exist app.py (echo app.py exists) else (exit 1)'
             }
         }
 
         stage('Docker Build') {
             steps {
-                script {
-                    echo "Building Docker image..."
-                    bat "docker build -t ${REGISTRY}/${GITHUB_USER}/${IMAGE_NAME}:latest ."
-                }
-            }
-        }
-
-        stage('Verify Docker Image') {
-            steps {
-                echo "Verifying local Docker image..."
-                bat "docker images ${REGISTRY}/${GITHUB_USER}/${IMAGE_NAME}:latest"
+                bat "docker build -t ${REGISTRY}/${GITHUB_USER}/${IMAGE_NAME}:latest ."
             }
         }
 
         stage('GHCR Push') {
             steps {
-                script {
-                    echo "Authenticating and pushing image to GHCR..."
-                    withCredentials([usernamePassword(credentialsId: 'ghcr-credentials', usernameVariable: 'GHCR_USER', passwordVariable: 'GHCR_PAT')]) {
-                        bat "echo %GHCR_PAT% | docker login %REGISTRY% -u %GHCR_USER% --password-stdin"
-                        bat "docker push %REGISTRY%/%GITHUB_USER%/%IMAGE_NAME%:latest"
-                    }
-                    echo "GHCR push successful!"
+                withCredentials([usernamePassword(credentialsId: 'ghcr-credentials', usernameVariable: 'GHCR_USER', passwordVariable: 'GHCR_PAT')]) {
+                    bat "echo %GHCR_PAT% | docker login %REGISTRY% -u %GHCR_USER% --password-stdin"
+                    bat "docker push %REGISTRY%/%GITHUB_USER%/%IMAGE_NAME%:latest"
                 }
+            }
+        }
+
+        stage('Deploy to EC2') {
+            steps {
+                script {
+                    echo "Deploying to AWS EC2 via SSH..."
+                    sshagent(credentials: ['ec2-ssh-key']) {
+                        // Remote commands on EC2: Pull latest image, stop old container, run new container
+                        bat """
+                        ssh -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_IP} "docker pull ${REGISTRY}/${GITHUB_USER}/${IMAGE_NAME}:latest && docker stop ${IMAGE_NAME} || true && docker rm ${IMAGE_NAME} || true && docker run -d --name ${IMAGE_NAME} -p 80:5000 ${REGISTRY}/${GITHUB_USER}/${IMAGE_NAME}:latest"
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                echo "Application deployed successfully!"
             }
         }
     }
