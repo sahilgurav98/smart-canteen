@@ -4,8 +4,8 @@ pipeline {
     environment {
         REGISTRY = 'ghcr.io'
         IMAGE_NAME = 'smart-canteen'
-        GITHUB_USER = 'YOUR_GITHUB_USERNAME'
-        EC2_IP = 'YOUR_EC2_PUBLIC_IP'
+        GITHUB_USER = 'sahilgurav98'
+        EC2_IP = '15.207.100.162'
         EC2_USER = 'ec2-user'
     }
 
